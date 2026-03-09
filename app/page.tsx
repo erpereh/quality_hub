@@ -241,8 +241,11 @@ export default function Home() {
                                 </label>
                             </div>
 
-                            <div className="text-sm text-slate-500 bg-white border border-slate-200 px-4 py-2 rounded-lg shadow-sm">
-                                Mostrando <strong className="text-slate-800">{visibleData.length}</strong> de <strong className="text-slate-800">{result.total_rows}</strong> filas
+                            <div className="flex items-center gap-4">
+                                <div className="text-sm text-slate-500 bg-white border border-slate-200 px-4 py-2 rounded-lg shadow-sm">
+                                    Mostrando <strong className="text-slate-800">{visibleData.length}</strong> de <strong className="text-slate-800">{result.total_rows}</strong> filas
+                                </div>
+                                <DownloadButton data={visibleData} />
                             </div>
 
                         </div>
@@ -254,9 +257,7 @@ export default function Home() {
                             onSort={handleSort}
                         />
 
-                        <div className="flex justify-center pt-2">
-                            <DownloadButton data={visibleData} />
-                        </div>
+
                     </section>
                 )}
             </div>
