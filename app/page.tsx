@@ -39,6 +39,7 @@ export default function Home() {
     // Filters
     const [showDescuadresOnly, setShowDescuadresOnly] = useState(false);
     const [showBothSystemsOnly, setShowBothSystemsOnly] = useState(false);
+    const [searchQuery, setSearchQuery] = useState("");
 
     const canSubmit = fileXrp && fileMeta4 && !loading;
 
@@ -98,6 +99,16 @@ export default function Home() {
             rows = rows.filter((r) => Math.abs(r.diferencia) > 0.01);
         }
 
+        // Filter 3: Búsqueda por nombre o ID
+        if (searchQuery.trim()) {
+            const q = searchQuery.trim().toLowerCase();
+            rows = rows.filter(
+                (r) =>
+                    r.nombre.toLowerCase().includes(q) ||
+                    r.id_empleado.toLowerCase().includes(q)
+            );
+        }
+
         // Sort
         if (sortKey) {
             rows.sort((a, b) => {
@@ -121,7 +132,7 @@ export default function Home() {
         }
 
         return rows;
-    }, [result, showBothSystemsOnly, showDescuadresOnly, sortKey, sortDir]);
+    }, [result, showBothSystemsOnly, showDescuadresOnly, searchQuery, sortKey, sortDir]);
 
     return (
         <main className="min-h-screen py-12 px-4 sm:px-6 lg:px-8">
@@ -239,6 +250,23 @@ export default function Home() {
                                         Ocultar coincidencias (ver descuadres)
                                     </span>
                                 </label>
+                            </div>
+
+                            {/* Search filter */}
+                            <div className="relative w-full sm:w-72">
+                                <svg
+                                    className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none"
+                                    fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+                                >
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+                                </svg>
+                                <input
+                                    type="text"
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    placeholder="Buscar por nombre o ID…"
+                                    className="w-full pl-9 pr-4 py-2 text-sm rounded-lg border border-slate-200 bg-white shadow-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-400 focus:border-brand-400 transition-shadow"
+                                />
                             </div>
 
                             <div className="flex items-center gap-4">
