@@ -1,5 +1,7 @@
 "use client";
 
+import { useRef, useEffect, useState } from "react";
+
 interface Row {
     nombre: string;
     id_empleado: string;
@@ -91,10 +93,59 @@ export default function ResultsTable({
     sortDir,
     onSort,
 }: ResultsTableProps) {
+    const topScrollRef = useRef<HTMLDivElement>(null);
+    const bottomScrollRef = useRef<HTMLDivElement>(null);
+    const tableRef = useRef<HTMLTableElement>(null);
+    const [tableWidth, setTableWidth] = useState<number>(0);
+
+    // Keep the top dummy div width synced with the actual table width
+    useEffect(() => {
+        if (!tableRef.current) return;
+        const observer = new ResizeObserver((entries) => {
+            for (let entry of entries) {
+                setTableWidth(entry.target.scrollWidth);
+            }
+        });
+        observer.observe(tableRef.current);
+        return () => observer.disconnect();
+    }, []);
+
+    // Ensure we also grab width when data changes
+    useEffect(() => {
+        if (tableRef.current) {
+            setTableWidth(tableRef.current.scrollWidth);
+        }
+    }, [data]);
+
+    const handleTopScroll = () => {
+        if (bottomScrollRef.current && topScrollRef.current) {
+            bottomScrollRef.current.scrollLeft = topScrollRef.current.scrollLeft;
+        }
+    };
+
+    const handleBottomScroll = () => {
+        if (topScrollRef.current && bottomScrollRef.current) {
+            topScrollRef.current.scrollLeft = bottomScrollRef.current.scrollLeft;
+        }
+    };
+
     return (
-        <div className="w-full">
-            <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
-                <table className="w-full text-left">
+        <div className="w-full space-y-2">
+            {/* Top synchronized scrollbar */}
+            <div
+                ref={topScrollRef}
+                onScroll={handleTopScroll}
+                className="overflow-x-auto w-full"
+            >
+                <div style={{ height: "1px", width: tableWidth ? `${tableWidth}px` : "100%" }}></div>
+            </div>
+
+            <div
+                ref={bottomScrollRef}
+                onScroll={handleBottomScroll}
+                className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm"
+            >
+                <table ref={tableRef} className="w-full text-left">
                     <thead>
                         <tr className="bg-brand-800 text-white text-[11px] uppercase tracking-wider">
                             {columns.map((col) => (
