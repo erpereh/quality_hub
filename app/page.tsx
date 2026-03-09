@@ -106,6 +106,12 @@ export default function Home() {
                 if (typeof av === "number" && typeof bv === "number") {
                     return sortDir === "asc" ? av - bv : bv - av;
                 }
+                // Try numeric comparison for string fields that look like numbers (e.g. id_empleado)
+                const an = parseFloat(String(av));
+                const bn = parseFloat(String(bv));
+                if (!isNaN(an) && !isNaN(bn)) {
+                    return sortDir === "asc" ? an - bn : bn - an;
+                }
                 const as = String(av ?? "").toLowerCase();
                 const bs = String(bv ?? "").toLowerCase();
                 if (as < bs) return sortDir === "asc" ? -1 : 1;
