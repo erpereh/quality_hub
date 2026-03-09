@@ -11,6 +11,9 @@ interface Row {
     deducciones_meta4: number;
     liquido_meta4: number;
     diferencia: number;
+    convenio_xrp: string;
+    convenio_meta4: string;
+    convenio_match: string;
     _merge: string;
 }
 
@@ -42,6 +45,9 @@ const columns: { key: SortKey; label: string; numeric: boolean }[] = [
     { key: "deducciones_meta4", label: "Deducciones META4", numeric: true },
     { key: "liquido_meta4", label: "LÍQUIDO META4", numeric: true },
     { key: "diferencia", label: "DIFERENCIA", numeric: true },
+    { key: "convenio_xrp", label: "CONVENIO XRP", numeric: false },
+    { key: "convenio_meta4", label: "CONVENIO META4", numeric: false },
+    { key: "convenio_match", label: "COINCIDENCIA", numeric: false },
     { key: "_merge", label: "Sistema", numeric: false },
 ];
 
@@ -69,6 +75,14 @@ function StatusBadge({ merge }: { merge: string }) {
         return <span className="inline-flex py-0.5 px-2 rounded-full text-[11px] font-medium bg-blue-100 text-blue-700">Solo Meta4</span>;
     }
     return <span className="inline-flex py-0.5 px-2 rounded-full text-[11px] font-medium bg-purple-100 text-purple-700">Solo XRP</span>;
+}
+
+function ConvenioBadge({ status }: { status: string }) {
+    if (!status) return <span className="text-slate-400">-</span>;
+    if (status === "COINCIDE") {
+        return <span className="inline-flex py-0.5 px-2 rounded-full text-[11px] font-medium bg-emerald-100 text-emerald-700">Coincide</span>;
+    }
+    return <span className="inline-flex py-0.5 px-2 rounded-full text-[11px] font-medium bg-red-100 text-red-700">No Coincide</span>;
 }
 
 export default function ResultsTable({
@@ -137,6 +151,15 @@ export default function ResultsTable({
                                             }`}
                                     >
                                         {formatNum(row.diferencia)}
+                                    </td>
+                                    <td className="px-3 py-2.5 text-center text-sm font-medium text-slate-700 whitespace-nowrap">
+                                        {row.convenio_xrp || "-"}
+                                    </td>
+                                    <td className="px-3 py-2.5 text-center text-sm font-medium text-slate-700 whitespace-nowrap">
+                                        {row.convenio_meta4 || "-"}
+                                    </td>
+                                    <td className="px-3 py-2.5 text-center whitespace-nowrap">
+                                        <ConvenioBadge status={row.convenio_match} />
                                     </td>
                                     <td className="px-3 py-2.5 text-center whitespace-nowrap">
                                         <StatusBadge merge={row._merge} />

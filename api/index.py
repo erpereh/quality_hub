@@ -96,6 +96,7 @@ async def process_payroll(
         XRP_COL_DEVENGOS = find_column(df_xrp, ["Total Devengado", "Devengos"], required=True)
         XRP_COL_DEDUCCIONES = find_column(df_xrp, ["Deducciones", "Retenciones", "Retenido"], required=False)
         XRP_COL_LIQUIDO = find_column(df_xrp, ["Liquido", "Neto", "Percibir"], required=False)
+        XRP_COL_CONVENIO = find_column(df_xrp, ["Convenio"], required=False)
 
         xrp_data = pd.DataFrame()
         xrp_data["dni_clean"] = df_xrp[XRP_COL_ID].apply(clean_dni)
@@ -112,6 +113,11 @@ async def process_payroll(
             xrp_data["liquido_xrp"] = df_xrp[XRP_COL_LIQUIDO].apply(safe_float)
         else:
             xrp_data["liquido_xrp"] = 0.0
+            
+        if XRP_COL_CONVENIO:
+            xrp_data["convenio_xrp"] = df_xrp[XRP_COL_CONVENIO].apply(clean_dni)
+        else:
+            xrp_data["convenio_xrp"] = ""
 
         # Eliminar vacíos y duplicados estrictamente (XRP)
         xrp_data = xrp_data[xrp_data["dni_clean"] != ""]
@@ -134,6 +140,7 @@ async def process_payroll(
         META4_COL_DEVENGOS = find_column(df_meta4, ["Total_Devengos", "Bruto", "Devengos"], required=True)
         META4_COL_DEDUCCIONES = find_column(df_meta4, ["Total.Retenido", "Deducciones", "Retenciones"], required=True)
         META4_COL_LIQUIDO = find_column(df_meta4, ["Liquido", "Neto", "Percibir"], required=True)
+        META4_COL_CONVENIO = find_column(df_meta4, ["id.Convenio", "Convenio"], required=False)
 
         meta4_data = pd.DataFrame()
         meta4_data["dni_clean"] = df_meta4[META4_COL_ID].apply(clean_dni)
@@ -163,6 +170,11 @@ async def process_payroll(
         meta4_data["devengos_meta4"] = df_meta4[META4_COL_DEVENGOS].apply(safe_float)
         meta4_data["deducciones_meta4"] = df_meta4[META4_COL_DEDUCCIONES].apply(safe_float)
         meta4_data["liquido_meta4"] = df_meta4[META4_COL_LIQUIDO].apply(safe_float)
+
+        if META4_COL_CONVENIO:
+            meta4_data["convenio_meta4"] = df_meta4[META4_COL_CONVENIO].apply(clean_dni)
+        else:
+            meta4_data["convenio_meta4"] = ""
 
         # Eliminar vacíos y duplicados estrictamente (Meta4)
         meta4_data = meta4_data[meta4_data["dni_clean"] != ""]
@@ -196,6 +208,17 @@ async def process_payroll(
             liq_m4 = safe_float(row.get("liquido_meta4"))
 
             diferencia = round(liq_m4 - liq_xrp, 2)
+            
+            conv_xrp = str(row.get("convenio_xrp", "") if pd.notna(row.get("convenio_xrp")) else "").strip()
+            conv_m4 = str(row.get("convenio_meta4", "") if pd.notna(row.get("convenio_meta4")) else "").strip()
+            
+            # Match strictly but ignore if both are missing
+            if conv_xrp == "" and conv_m4 == "":
+                conv_match = ""
+            elif conv_xrp == conv_m4:
+                conv_match = "COINCIDE"
+            else:
+                conv_match = "NO COINCIDE"
 
             result_rows.append({
                 "nombre": nombre,
@@ -208,6 +231,9 @@ async def process_payroll(
                 "deducciones_meta4": round(ded_m4, 2),
                 "liquido_meta4": round(liq_m4, 2),
                 "diferencia": diferencia,
+                "convenio_xrp": conv_xrp,
+                "convenio_meta4": conv_m4,
+                "convenio_match": conv_match,
                 "_merge": str(merge_status)
             })
 
@@ -239,6 +265,9 @@ class RowData(BaseModel):
     deducciones_meta4: float = 0
     liquido_meta4: float = 0
     diferencia: float = 0
+    convenio_xrp: str = ""
+    convenio_meta4: str = ""
+    convenio_match: str = ""
     _merge: str = "" # ignore when exporting
 
 
@@ -257,7 +286,7 @@ async def generate_excel(req: ExcelRequest):
             "Nombre", "ID Empleado", "Empresa",
             "Devengos XRP", "Deducciones XRP", "LÍQUIDO XRP",
             "Devengos META4", "Deducciones META4", "LÍQUIDO META4",
-            "DIFERENCIA",
+            "DIFERENCIA", "CONVENIO XRP", "CONVENIO META4", "COINCIDENCIA"
         ]
 
         # Estilos visuales
@@ -287,6 +316,7 @@ async def generate_excel(req: ExcelRequest):
                 record.devengos_xrp, record.deducciones_xrp, record.liquido_xrp,
                 record.devengos_meta4, record.deducciones_meta4, record.liquido_meta4,
                 record.diferencia,
+                record.convenio_xrp, record.convenio_meta4, record.convenio_match
             ]
             has_diff = abs(record.diferencia) > 0.01
 

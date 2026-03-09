@@ -16,6 +16,9 @@ interface ComparisonRow {
     deducciones_meta4: number;
     liquido_meta4: number;
     diferencia: number;
+    convenio_xrp: string;
+    convenio_meta4: string;
+    convenio_match: string;
     _merge: string;
 }
 
