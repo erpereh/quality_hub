@@ -1,0 +1,56 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --gradient-start: #f8fafc;
+  --gradient-end: #eef2f7;
+}
+
+body {
+  min-height: 100vh;
+  background: linear-gradient(160deg, var(--gradient-start) 0%, var(--gradient-end) 100%);
+}
+
+/* Subtle mesh overlay */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background-image:
+    radial-gradient(at 20% 30%, rgba(29, 78, 216, 0.04) 0%, transparent 50%),
+    radial-gradient(at 80% 70%, rgba(16, 185, 129, 0.04) 0%, transparent 50%);
+}
+
+/* Smooth scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Spinner animation */
+@keyframes spin-slow {
+  to { transform: rotate(360deg); }
+}
+.animate-spin-slow {
+  animation: spin-slow 1.2s cubic-bezier(0.5, 0, 0.5, 1) infinite;
+}
+
+/* Table row hover */
+.table-row-hover {
+  transition: background-color 0.15s ease;
+}
+.table-row-hover:hover {
+  background-color: rgba(29, 78, 216, 0.04);
+}
