@@ -4,6 +4,7 @@ import { useState, useMemo } from "react";
 import DropZone from "@/components/DropZone";
 import ResultsTable, { SortKey, SortDir } from "@/components/ResultsTable";
 import DownloadButton from "@/components/DownloadButton";
+import Link from "next/link";
 
 interface ComparisonRow {
     nombre: string;
@@ -146,6 +147,13 @@ export default function Home() {
     return (
         <main className="min-h-screen py-12 px-4 sm:px-6 lg:px-8">
             <div className="max-w-7xl mx-auto">
+                {/* Back to Hub */}
+                <div className="mb-6 flex justify-center text-center">
+                    <Link href="/" className="inline-flex items-center self-start gap-2 text-sm text-brand-600 hover:text-brand-800 font-medium transition-colors">
+                        <span>&larr;</span> Volver al Menú Principal
+                    </Link>
+                </div>
+
                 {/* Header */}
                 <header className="text-center mb-12">
                     <h1 className="text-4xl sm:text-5xl font-bold tracking-tight text-slate-900 mb-3">
