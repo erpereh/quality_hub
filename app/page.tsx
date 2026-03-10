@@ -13,12 +13,12 @@ export default function HubPage() {
                 </p>
             </header>
 
-            <div className="w-full max-w-4xl mx-auto flex-1">
+            <div className="w-full max-w-6xl mx-auto flex-1 px-4 lg:px-8">
                 <h2 className="text-sm font-bold text-slate-400 uppercase tracking-widest text-center mb-8 animate-fade-in opacity-0" style={{ animationDelay: '200ms' }}>
                     Herramientas Disponibles
                 </h2>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
                     {/* Card Comparativa */}
                     <div
                         className="bg-white rounded-2xl shadow-sm border border-slate-200 hover:shadow-xl hover:shadow-brand-100/50 hover:border-brand-200 hover:-translate-y-1 transition-all duration-300 p-8 sm:p-10 flex flex-col text-center group animate-fade-in opacity-0"
@@ -58,6 +58,27 @@ export default function HubPage() {
                         >
                             Abrir Convertidor
                             <span className="group-hover:translate-x-1 transition-transform opacity-70">&rarr;</span>
+                        </Link>
+                    </div>
+
+                    {/* Card Migrador Meta4 a Cegid */}
+                    <div
+                        className="bg-white rounded-2xl shadow-sm border border-slate-200 hover:shadow-xl hover:shadow-indigo-100/50 hover:border-indigo-200 hover:-translate-y-1 transition-all duration-300 p-8 sm:p-10 flex flex-col text-center group animate-fade-in opacity-0"
+                        style={{ animationDelay: '500ms' }}
+                    >
+                        <div className="w-16 h-16 mx-auto bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center text-3xl mb-6 shadow-sm border border-indigo-100 group-hover:scale-110 group-hover:bg-indigo-100 transition-all duration-300">
+                            ⚡
+                        </div>
+                        <h3 className="text-2xl font-bold text-slate-800 mb-3">Migrador Meta4 a Cegid</h3>
+                        <p className="text-slate-500 mb-8 flex-1 leading-relaxed">
+                            Transforma pseudocódigo y conceptos de nómina de Meta4 a la formulación de Cegid XRP mediante Inteligencia Artificial.
+                        </p>
+                        <Link
+                            href="/migrador-meta4-cegid"
+                            className="w-full inline-flex justify-center items-center gap-2 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-semibold py-3.5 px-6 rounded-xl transition-all duration-200 shadow-md shadow-indigo-200/50 hover:shadow-lg"
+                        >
+                            Abrir Migrador
+                            <span className="group-hover:translate-x-1 transition-transform">&rarr;</span>
                         </Link>
                     </div>
                 </div>
