@@ -4,17 +4,12 @@ export default function HubPage() {
     return (
         <main className="min-h-screen bg-slate-50 flex flex-col pt-12 sm:pt-20 px-4 sm:px-6 lg:px-8">
             {/* Header */}
-            <header className="text-center mb-16 max-w-3xl mx-auto flex flex-col items-center animate-fade-in opacity-0" style={{ animationDelay: '100ms' }}>
-                <img
-                    src="/logo.png"
-                    alt="Quality Solutions Logo"
-                    className="h-20 sm:h-24 w-auto mb-6 drop-shadow-md hover:scale-105 transition-transform duration-300"
-                />
+            <header className="text-center mb-16 max-w-3xl mx-auto animate-fade-in opacity-0" style={{ animationDelay: '100ms' }}>
                 <h1 className="text-5xl md:text-6xl font-extrabold tracking-tight text-slate-900 mb-4">
-                    Quality <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-600 to-brand-800">Solutions</span>
+                    Quality <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-600 to-brand-800">Solution</span>
                 </h1>
                 <p className="text-slate-500 text-lg md:text-xl font-medium">
-                    Soluciones de Calidad para tu Negocio
+                    Hub de Herramientas Internas y Análisis de Datos
                 </p>
             </header>
 
@@ -69,8 +64,8 @@ export default function HubPage() {
             </div>
 
             <footer className="mt-8 py-8 text-center text-slate-400 text-sm w-full animate-fade-in opacity-0" style={{ animationDelay: '600ms' }}>
-                <p className="mb-1 font-medium">&copy; 2026 Quality Solutions. Todos los derechos reservados.</p>
-                <p>Transformando ideas en soluciones de calidad.</p>
+                <p className="mb-1 font-medium">&copy; 2026 Quality Solution. Todos los derechos reservados.</p>
+                <p>Plataforma para la optimización de procesos y datos.</p>
             </footer>
         </main>
     );

@@ -16,10 +16,10 @@ const jetbrains = JetBrains_Mono({
 
 export const metadata: Metadata = {
     title: {
-        template: "%s | Quality Solutions",
-        default: "Quality Solutions Hub",
+        template: "%s | Quality Solution",
+        default: "Quality Solution Hub",
     },
-    description: "Plataforma de herramientas internas de Quality Solutions",
+    description: "Plataforma de herramientas internas de Quality Solution",
     icons: {
         icon: "/logo.png",
     },
