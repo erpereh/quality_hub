@@ -4,13 +4,26 @@ const N8N_WEBHOOK_URL = "https://d4vbit-n8n.hf.space/webhook/migrar-nomina";
 
 export async function POST(request: NextRequest) {
     try {
-        // Read the incoming FormData (file + job_id) from the client
         const formData = await request.formData();
+        const file = formData.get("file") as File;
+        const jobId = formData.get("job_id") as string;
 
-        // Forward it as-is to the real n8n webhook
+        if (!file || !jobId) {
+            return NextResponse.json(
+                { error: "Faltan datos requeridos (file o job_id)" },
+                { status: 400 }
+            );
+        }
+
+        // Crear una nueva instancia de FormData para Vercel
+        const newFormData = new FormData();
+        newFormData.append("file", file);
+        newFormData.append("job_id", jobId);
+
+        // Forward it to the real n8n webhook
         const n8nResponse = await fetch(N8N_WEBHOOK_URL, {
             method: "POST",
-            body: formData,
+            body: newFormData,
         });
 
         if (!n8nResponse.ok) {
