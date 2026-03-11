@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import * as XLSX from "xlsx";
 
 interface DownloadButtonProps {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -10,40 +11,44 @@ interface DownloadButtonProps {
 export default function DownloadButton({ data }: DownloadButtonProps) {
     const [loading, setLoading] = useState(false);
 
-    const handleDownload = async () => {
+    const handleDownload = () => {
+        if (!data || data.length === 0) {
+            alert("No hay datos para descargar.");
+            return;
+        }
+
         setLoading(true);
+
         try {
-            const res = await fetch("/api/generate-excel", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ data }),
-            });
+            // Map rows to the desired Excel columns
+            const excelData = data.map((row) => ({
+                "Concepto": row.concepto || "",
+                "Fórmula Meta4": row.meta4_formula || "",
+                "Unidades Meta4": row.meta4_unidades || "",
+                "Precio Meta4": row.meta4_precio || "",
+                "Fórmula Cegid XRP": row.cegid_formula || "",
+                "Unidades Cegid XRP": row.cegid_unidades || "",
+                "Precio Cegid XRP": row.cegid_precio || "",
+                "Lógica Aplicada": row.logica_aplicada || "",
+                "Anotaciones": row.anotaciones || "",
+            }));
 
-            if (!res.ok) {
-                const err = await res.json().catch(() => null);
-                throw new Error(err?.detail || `Error ${res.status}`);
-            }
+            // Create workbook and worksheet
+            const ws = XLSX.utils.json_to_sheet(excelData);
 
-            const { excel_base64 } = await res.json();
+            // Auto-size columns based on header width + some padding
+            const colWidths = Object.keys(excelData[0]).map((key) => ({
+                wch: Math.max(key.length + 4, 18),
+            }));
+            ws["!cols"] = colWidths;
 
-            // Decode base64 → blob → download
-            const byteChars = atob(excel_base64);
-            const byteNumbers = new Array(byteChars.length);
-            for (let i = 0; i < byteChars.length; i++) {
-                byteNumbers[i] = byteChars.charCodeAt(i);
-            }
-            const blob = new Blob([new Uint8Array(byteNumbers)], {
-                type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            });
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement("a");
-            link.href = url;
-            link.download = "comparativa_nominas.xlsx";
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            URL.revokeObjectURL(url);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Migración Meta4 → Cegid");
+
+            // Generate and download
+            XLSX.writeFile(wb, "migracion_meta4_cegid.xlsx");
         } catch (err) {
+            console.error("Error generando el Excel:", err);
             alert(err instanceof Error ? err.message : "Error descargando Excel");
         } finally {
             setLoading(false);
@@ -53,7 +58,7 @@ export default function DownloadButton({ data }: DownloadButtonProps) {
     return (
         <button
             onClick={handleDownload}
-            disabled={loading}
+            disabled={loading || !data || data.length === 0}
             className={`
         inline-flex items-center gap-2.5 px-6 py-3
         font-semibold rounded-xl
@@ -61,7 +66,9 @@ export default function DownloadButton({ data }: DownloadButtonProps) {
         focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2
         ${loading
                     ? "bg-slate-300 text-slate-500 cursor-wait"
-                    : "bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white shadow-emerald-200/50 hover:shadow-lg hover:shadow-emerald-200/60"
+                    : (!data || data.length === 0)
+                        ? "bg-slate-200 text-slate-400 cursor-not-allowed"
+                        : "bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white shadow-emerald-200/50 hover:shadow-lg hover:shadow-emerald-200/60"
                 }
       `}
         >

@@ -3,7 +3,7 @@
 import { useState, useRef, ChangeEvent, DragEvent, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
-import DownloadButton from "@/components/DownloadButton"; // Assuming this handles array of objects
+import DownloadButton from "@/components/DownloadButton";
 
 // Initialize Supabase. Requires user to set these in .env.local
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://rxdnylmzkqevzrlxwyri.supabase.co";
@@ -15,7 +15,11 @@ interface MigracionRow {
     job_id: string;
     concepto: string;
     meta4_formula: string;
+    meta4_unidades: string;
+    meta4_precio: string;
     cegid_formula: string;
+    cegid_unidades: string;
+    cegid_precio: string;
     logica_aplicada: string;
     anotaciones: string;
     status?: string;
@@ -66,7 +70,7 @@ export default function MigradorPage() {
     useEffect(() => {
         if (!tableRef.current) return;
         const observer = new ResizeObserver((entries) => {
-            for (let entry of entries) {
+            for (const entry of entries) {
                 setTableWidth(entry.target.scrollWidth);
             }
         });
@@ -188,8 +192,6 @@ export default function MigradorPage() {
 
             // Wait out just a second so user can read "Procesando..." label
             setTimeout(() => {
-                // Not closing `isProcessing` intentionally so they know it is background loading, 
-                // but for UX, let's unlock button if they want to run a new one later.
                 setIsProcessing(false);
             }, 2000);
 
@@ -218,7 +220,9 @@ export default function MigradorPage() {
                 (r) =>
                     (r.concepto && r.concepto.toLowerCase().includes(q)) ||
                     (r.meta4_formula && r.meta4_formula.toLowerCase().includes(q)) ||
-                    (r.cegid_formula && r.cegid_formula.toLowerCase().includes(q))
+                    (r.cegid_formula && r.cegid_formula.toLowerCase().includes(q)) ||
+                    (r.meta4_unidades && r.meta4_unidades.toLowerCase().includes(q)) ||
+                    (r.cegid_unidades && r.cegid_unidades.toLowerCase().includes(q))
             );
         }
 
@@ -234,9 +238,12 @@ export default function MigradorPage() {
         return rows;
     }, [results, searchQuery, sortKey, sortDir]);
 
+    // Total column count for the empty-state row
+    const totalCols = 9;
+
     return (
         <main className="min-h-screen bg-slate-50 py-12 px-4 sm:px-6 lg:px-8">
-            <div className="max-w-7xl mx-auto space-y-8">
+            <div className="max-w-[1600px] mx-auto space-y-8">
                 {/* Header */}
                 <header className="text-center mb-12 animate-fade-in opacity-0" style={{ animationDelay: '100ms', animationFillMode: 'forwards' }}>
                     <div className="mb-6 flex justify-center text-center">
@@ -355,7 +362,7 @@ export default function MigradorPage() {
                                     type="text"
                                     value={searchQuery}
                                     onChange={(e) => setSearchQuery(e.target.value)}
-                                    placeholder="Buscar por concepto..."
+                                    placeholder="Buscar por concepto o fórmula..."
                                     className="w-full pl-9 pr-4 py-2 text-sm rounded-lg border border-slate-200 bg-white shadow-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-400 focus:border-brand-400 transition-shadow"
                                 />
                             </div>
@@ -368,46 +375,99 @@ export default function MigradorPage() {
                             </div>
                         </div>
 
-                        {/* Replicated table styling */}
+                        {/* Table with grouped headers */}
                         <div className="w-full space-y-2">
                             <div ref={topScrollRef} onScroll={handleTopScroll} className="overflow-x-auto w-full">
                                 <div style={{ height: "1px", width: tableWidth ? `${tableWidth}px` : "100%" }}></div>
                             </div>
 
                             <div ref={bottomScrollRef} onScroll={handleBottomScroll} className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
-                                <table ref={tableRef} className="w-full text-left">
+                                <table ref={tableRef} className="w-full text-left" style={{ minWidth: '1200px' }}>
                                     <thead>
+                                        {/* Group header row */}
+                                        <tr className="bg-brand-900 text-white text-[10px] uppercase tracking-widest">
+                                            <th className="px-3 py-2 font-bold rounded-tl-xl border-r border-brand-700" rowSpan={1}>
+                                                {/* Concepto spans down — handled by visual alignment */}
+                                            </th>
+                                            <th className="px-3 py-2 font-bold text-center border-r border-brand-700" colSpan={3}>
+                                                <span className="inline-flex items-center gap-1.5">
+                                                    <span className="w-2 h-2 rounded-full bg-slate-300 inline-block"></span>
+                                                    Meta4
+                                                </span>
+                                            </th>
+                                            <th className="px-3 py-2 font-bold text-center border-r border-brand-700" colSpan={3}>
+                                                <span className="inline-flex items-center gap-1.5">
+                                                    <span className="w-2 h-2 rounded-full bg-brand-400 inline-block"></span>
+                                                    Cegid XRP
+                                                </span>
+                                            </th>
+                                            <th className="px-3 py-2 font-bold border-r border-brand-700"></th>
+                                            <th className="px-3 py-2 font-bold rounded-tr-xl"></th>
+                                        </tr>
+                                        {/* Sub-header row */}
                                         <tr className="bg-brand-800 text-white text-[11px] uppercase tracking-wider">
-                                            <th className="px-3 py-3 font-semibold cursor-pointer select-none hover:bg-brand-700 transition-colors rounded-tl-xl" onClick={() => handleSort("concepto")}>
-                                                CONCEPTO <SortArrow active={sortKey === "concepto"} dir={sortDir} />
+                                            <th className="px-3 py-3 font-semibold cursor-pointer select-none hover:bg-brand-700 transition-colors border-r border-brand-700 min-w-[160px]" onClick={() => handleSort("concepto")}>
+                                                Concepto <SortArrow active={sortKey === "concepto"} dir={sortDir} />
                                             </th>
-                                            <th className="px-3 py-3 font-semibold cursor-pointer select-none hover:bg-brand-700 transition-colors w-[30%]" onClick={() => handleSort("meta4_formula")}>
-                                                FÓRMULA META4 <SortArrow active={sortKey === "meta4_formula"} dir={sortDir} />
+                                            {/* META4 sub-columns */}
+                                            <th className="px-3 py-3 font-semibold cursor-pointer select-none hover:bg-brand-700 transition-colors min-w-[200px]" onClick={() => handleSort("meta4_formula")}>
+                                                Fórmula <SortArrow active={sortKey === "meta4_formula"} dir={sortDir} />
                                             </th>
-                                            <th className="px-3 py-3 font-semibold cursor-pointer select-none hover:bg-brand-700 transition-colors w-[30%]" onClick={() => handleSort("cegid_formula")}>
-                                                FÓRMULA CEGID XRP <SortArrow active={sortKey === "cegid_formula"} dir={sortDir} />
+                                            <th className="px-3 py-3 font-semibold cursor-pointer select-none hover:bg-brand-700 transition-colors min-w-[100px]" onClick={() => handleSort("meta4_unidades")}>
+                                                Uds <SortArrow active={sortKey === "meta4_unidades"} dir={sortDir} />
                                             </th>
-                                            <th className="px-3 py-3 font-semibold cursor-pointer select-none hover:bg-brand-700 transition-colors w-[10%]" onClick={() => handleSort("status")}>
-                                                ESTADO <SortArrow active={sortKey === "status"} dir={sortDir} />
+                                            <th className="px-3 py-3 font-semibold cursor-pointer select-none hover:bg-brand-700 transition-colors border-r border-brand-700 min-w-[100px]" onClick={() => handleSort("meta4_precio")}>
+                                                Precio <SortArrow active={sortKey === "meta4_precio"} dir={sortDir} />
                                             </th>
-                                            <th className="px-3 py-3 font-semibold cursor-pointer select-none hover:bg-brand-700 transition-colors rounded-tr-xl" onClick={() => handleSort("logica_aplicada")}>
-                                                LÓGICA Y ANOTACIONES <SortArrow active={sortKey === "logica_aplicada"} dir={sortDir} />
+                                            {/* CEGID sub-columns */}
+                                            <th className="px-3 py-3 font-semibold cursor-pointer select-none hover:bg-brand-700 transition-colors min-w-[200px]" onClick={() => handleSort("cegid_formula")}>
+                                                Fórmula <SortArrow active={sortKey === "cegid_formula"} dir={sortDir} />
+                                            </th>
+                                            <th className="px-3 py-3 font-semibold cursor-pointer select-none hover:bg-brand-700 transition-colors min-w-[100px]" onClick={() => handleSort("cegid_unidades")}>
+                                                Uds <SortArrow active={sortKey === "cegid_unidades"} dir={sortDir} />
+                                            </th>
+                                            <th className="px-3 py-3 font-semibold cursor-pointer select-none hover:bg-brand-700 transition-colors border-r border-brand-700 min-w-[100px]" onClick={() => handleSort("cegid_precio")}>
+                                                Precio <SortArrow active={sortKey === "cegid_precio"} dir={sortDir} />
+                                            </th>
+                                            {/* Estado */}
+                                            <th className="px-3 py-3 font-semibold cursor-pointer select-none hover:bg-brand-700 transition-colors border-r border-brand-700 min-w-[110px]" onClick={() => handleSort("status")}>
+                                                Estado <SortArrow active={sortKey === "status"} dir={sortDir} />
+                                            </th>
+                                            {/* Lógica y Anotaciones */}
+                                            <th className="px-3 py-3 font-semibold cursor-pointer select-none hover:bg-brand-700 transition-colors min-w-[220px]" onClick={() => handleSort("logica_aplicada")}>
+                                                Lógica y Anotaciones <SortArrow active={sortKey === "logica_aplicada"} dir={sortDir} />
                                             </th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100">
                                         {visibleData.map((row, i) => (
                                             <tr key={row.id || i} className="table-row-hover">
-                                                <td className="px-3 py-3 text-sm font-medium text-slate-800 whitespace-nowrap">
+                                                {/* Concepto */}
+                                                <td className="px-3 py-3 text-sm font-medium text-slate-800 whitespace-nowrap border-r border-slate-100">
                                                     {row.concepto}
                                                 </td>
-                                                <td className="px-3 py-3 text-sm text-slate-500 font-mono bg-slate-50/30">
+                                                {/* Meta4 */}
+                                                <td className="px-3 py-3 text-sm text-slate-600 font-mono bg-slate-50/30">
                                                     {row.meta4_formula}
                                                 </td>
+                                                <td className="px-3 py-3 text-sm text-slate-500 bg-slate-50/30 text-center">
+                                                    {row.meta4_unidades}
+                                                </td>
+                                                <td className="px-3 py-3 text-sm text-slate-500 bg-slate-50/30 text-right border-r border-slate-100">
+                                                    {row.meta4_precio}
+                                                </td>
+                                                {/* Cegid XRP */}
                                                 <td className="px-3 py-3 text-sm text-brand-700 font-mono bg-brand-50/20">
                                                     {row.cegid_formula}
                                                 </td>
-                                                <td className="px-3 py-3 text-sm">
+                                                <td className="px-3 py-3 text-sm text-brand-600 bg-brand-50/20 text-center">
+                                                    {row.cegid_unidades}
+                                                </td>
+                                                <td className="px-3 py-3 text-sm text-brand-600 bg-brand-50/20 text-right border-r border-slate-100">
+                                                    {row.cegid_precio}
+                                                </td>
+                                                {/* Estado */}
+                                                <td className="px-3 py-3 text-sm border-r border-slate-100">
                                                     {row.status === 'completado' ? (
                                                         <span className="inline-flex items-center px-2 py-1 rounded-md bg-emerald-100 text-emerald-700 text-xs font-medium">✓ Completado</span>
                                                     ) : row.status === 'error' ? (
@@ -416,6 +476,7 @@ export default function MigradorPage() {
                                                         <span className="inline-flex items-center px-2 py-1 rounded-md bg-amber-100 text-amber-700 text-xs font-medium animate-pulse">⟳ Procesando</span>
                                                     )}
                                                 </td>
+                                                {/* Lógica y Anotaciones */}
                                                 <td className="px-3 py-3 text-sm text-slate-600">
                                                     <div className="flex flex-col gap-1">
                                                         <span>{row.logica_aplicada}</span>
@@ -428,7 +489,7 @@ export default function MigradorPage() {
                                         ))}
                                         {visibleData.length === 0 && (
                                             <tr>
-                                                <td colSpan={5} className="px-6 py-8 text-center text-sm text-slate-500">
+                                                <td colSpan={totalCols} className="px-6 py-8 text-center text-sm text-slate-500">
                                                     {isProcessing ? "Esperando la respuesta de la IA (Realtime activado)..." : "No hay resultados."}
                                                 </td>
                                             </tr>
