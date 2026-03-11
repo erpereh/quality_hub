@@ -7,7 +7,7 @@ import DownloadButton from "@/components/DownloadButton"; // Assuming this handl
 
 // Initialize Supabase. Requires user to set these in .env.local
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://rxdnylmzkqevzrlxwyri.supabase.co";
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "dummy_key_to_prevent_crash_if_not_set";
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "sb_publishable_orRtPGJIVhyKwjrp7C5aXQ_gY-os-rp";
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 interface MigracionRow {
@@ -170,7 +170,7 @@ export default function MigradorPage() {
             formData.append("job_id", currentJobId);
 
             // Fetch to the specific n8n webhook URL
-            const response = await fetch("https://d4vbit-n8n.hf.space/webhook/migrar-nomina", {
+            const response = await fetch("/api/migrar", {
                 method: "POST",
                 body: formData,
             });
