@@ -1,13 +1,19 @@
 from fastapi import FastAPI, File, UploadFile, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 import pandas as pd
 import numpy as np
 from io import BytesIO
 import base64
+import json
+import os
+import re
+import unicodedata
+import datetime as dt
 from openpyxl import Workbook
 from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
 from typing import List
+import google.generativeai as genai
 
 app = FastAPI()
 
@@ -360,3 +366,283 @@ async def generate_excel(req: ExcelRequest):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error generando Excel: {str(e)}")
+
+
+def _normalize_header(value: str) -> str:
+    value = value.strip().lower()
+    value = unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode("ascii")
+    return re.sub(r"[^a-z0-9]+", "", value)
+
+
+def _extract_target_columns(payload) -> List[str]:
+    if isinstance(payload, dict):
+        if "columnas" in payload:
+            cols = payload["columnas"]
+        elif "R0" in payload and isinstance(payload["R0"], dict) and "columnas" in payload["R0"]:
+            cols = payload["R0"]["columnas"]
+        else:
+            cols = []
+    elif isinstance(payload, list):
+        cols = payload
+    else:
+        cols = []
+
+    out: List[str] = []
+    for c in cols:
+        if isinstance(c, dict) and "name" in c:
+            out.append(str(c["name"]))
+        elif isinstance(c, str):
+            out.append(c)
+    return out
+
+
+def _load_sgel_template() -> tuple[List[str], dict, dict]:
+    base_dir = os.path.dirname(__file__)
+    primary_path = os.path.join(base_dir, "templates", "r_formats.json")
+    fallback_path = os.path.join(base_dir, "templates", "sgel_r_format.json")
+
+    if os.path.exists(primary_path):
+        with open(primary_path, "r", encoding="utf-8") as f:
+            payload = json.load(f)
+        r0 = payload.get("R0", {}) if isinstance(payload, dict) else {}
+        columns = r0.get("columnas", []) if isinstance(r0, dict) else []
+        target_cols: List[str] = []
+        defaults: dict = {}
+        meta_map: dict = {}
+        for col in columns:
+            if not isinstance(col, dict):
+                continue
+            name = str(col.get("name", "")).strip()
+            if not name:
+                continue
+            target_cols.append(name)
+            meta_map[name] = col
+            if "default" in col:
+                defaults[name] = col.get("default")
+        if target_cols:
+            return target_cols, defaults, meta_map
+
+    if os.path.exists(fallback_path):
+        with open(fallback_path, "r", encoding="utf-8") as f:
+            payload = json.load(f)
+        cols = _extract_target_columns(payload)
+        if cols:
+            return cols, {}, {}
+
+    raise HTTPException(status_code=500, detail="No se encontrÃ³ un archivo de referencia SGEL vÃ¡lido.")
+
+
+def _heuristic_mapping(source_headers: List[str], target_headers: List[str]) -> dict:
+    source_map = { _normalize_header(h): h for h in source_headers }
+    mapping = {}
+    for target in target_headers:
+        t_norm = _normalize_header(target)
+        if t_norm in source_map:
+            mapping[target] = source_map[t_norm]
+            continue
+        # Partial contains matching as fallback
+        found = ""
+        for s_norm, s_raw in source_map.items():
+            if t_norm and (t_norm in s_norm or s_norm in t_norm):
+                found = s_raw
+                break
+        mapping[target] = found
+    return mapping
+
+
+def _detect_header_row(df_raw: pd.DataFrame, max_rows: int = 20) -> int:
+    best_row = 0
+    best_score = -1
+    rows_to_check = min(max_rows, len(df_raw))
+    for i in range(rows_to_check):
+        row = df_raw.iloc[i].tolist()
+        non_empty = [c for c in row if isinstance(c, str) and c.strip()]
+        score = len(non_empty)
+        if score > best_score:
+            best_score = score
+            best_row = i
+    return best_row
+
+
+def _is_date_like(value) -> bool:
+    if pd.isna(value):
+        return False
+    return isinstance(value, (pd.Timestamp, dt.date, dt.datetime))
+
+
+def _normalize_name_for_checks(value: str) -> str:
+    return _normalize_header(value)
+
+
+def _map_headers_with_gemini(source_headers: List[str], target_headers: List[str]) -> dict:
+    api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="Missing GOOGLE_API_KEY or GEMINI_API_KEY for Gemini.")
+
+    genai.configure(api_key=api_key)
+    model_candidates = []
+    env_model = os.getenv("GEMINI_MODEL")
+    if env_model:
+        model_candidates.append(env_model)
+    model_candidates.extend([
+        "gemini-1.5-flash",
+        "gemini-1.5-pro",
+        "gemini-1.0-pro",
+    ])
+
+    prompt = (
+        "You map Excel headers to target headers.\n"
+        "Return ONLY valid JSON: {\"TargetColumn\": \"SourceColumn\"}.\n"
+        "If no match, return empty string.\n\n"
+        f"Source headers: {source_headers}\n"
+        f"Target headers: {target_headers}\n"
+    )
+
+    text = ""
+    last_error = None
+    for model_name in model_candidates:
+        try:
+            model = genai.GenerativeModel(model_name)
+            response = model.generate_content(prompt)
+            text = response.text or ""
+            if text:
+                break
+        except Exception as e:
+            last_error = e
+            continue
+
+    if not text:
+        if last_error:
+            print(f"[gemini] model error: {last_error}")
+        return {}
+
+    start = text.find("{")
+    end = text.rfind("}")
+    if start == -1 or end == -1 or end <= start:
+        return {}
+
+    try:
+        data = json.loads(text[start : end + 1])
+    except json.JSONDecodeError:
+        return {}
+
+    if not isinstance(data, dict):
+        return {}
+    return {str(k): (str(v) if v is not None else "") for k, v in data.items()}
+
+
+@app.post("/api/generate-sgel-r")
+async def generate_sgel_r(file: UploadFile = File(...)):
+    try:
+        if not file.filename:
+            raise HTTPException(status_code=400, detail="Archivo no vÃ¡lido.")
+
+        target_columns, defaults, meta_map = _load_sgel_template()
+
+        raw = await file.read()
+        df_raw = pd.read_excel(BytesIO(raw), engine="openpyxl", header=None)
+        header_row = _detect_header_row(df_raw)
+        headers = df_raw.iloc[header_row].tolist()
+        headers = [str(h).strip() if pd.notna(h) else "" for h in headers]
+        df = df_raw.iloc[header_row + 1 :].copy()
+        df.columns = headers
+        df = df.loc[:, [c for c in df.columns if c]]
+        df = df.dropna(how="all")
+        source_headers = [str(c) for c in df.columns]
+        print(f"[sgel] detected header row: {header_row}")
+        print(f"[sgel] source headers: {source_headers}")
+        print(f"[sgel] source rows: {len(df)}")
+        if len(df) > 0:
+            print(f"[sgel] first row sample: {df.iloc[0].to_dict()}")
+
+        mapping = _map_headers_with_gemini(source_headers, target_columns)
+        if mapping:
+            print(f"[sgel] gemini mapping: {mapping}")
+        if not mapping:
+            mapping = _heuristic_mapping(source_headers, target_columns)
+            print(f"[sgel] heuristic mapping: {mapping}")
+
+        normalized_sources = { _normalize_header(c): c for c in df.columns }
+
+        out = pd.DataFrame(index=df.index)
+        for target in target_columns:
+            if target in defaults:
+                out[target] = defaults[target]
+                continue
+            source = mapping.get(target, "")
+            if source in df.columns:
+                out[target] = df[source]
+            else:
+                alt = normalized_sources.get(_normalize_header(source), "")
+                if alt in df.columns:
+                    out[target] = df[alt]
+                elif target in defaults:
+                    out[target] = defaults[target]
+                else:
+                    out[target] = pd.NA
+
+        issues = []
+        for col in out.columns:
+            meta = meta_map.get(col, {})
+            expected_type = str(meta.get("type", "string")).lower()
+            series = out[col]
+
+            if expected_type == "date":
+                parsed = pd.to_datetime(series, errors="coerce", dayfirst=True)
+                invalid = series.notna() & parsed.isna()
+                for idx, val in series[invalid].items():
+                    issues.append({
+                        "fila": int(idx) + 1,
+                        "columna": col,
+                        "valor": val,
+                        "motivo": "Fecha no valida"
+                    })
+                fmt = meta.get("format", "%d/%m/%Y")
+                out[col] = parsed.dt.strftime(fmt)
+            elif expected_type == "number":
+                num = pd.to_numeric(series, errors="coerce")
+                invalid = series.notna() & num.isna()
+                for idx, val in series[invalid].items():
+                    issues.append({
+                        "fila": int(idx) + 1,
+                        "columna": col,
+                        "valor": val,
+                        "motivo": "Numero no valido"
+                    })
+                out[col] = num
+            else:
+                name_norm = _normalize_name_for_checks(col)
+                if "fecha" not in name_norm:
+                    invalid = series.apply(_is_date_like)
+                    for idx, val in series[invalid].items():
+                        issues.append({
+                            "fila": int(idx) + 1,
+                            "columna": col,
+                            "valor": val,
+                            "motivo": "Valor de fecha en columna no fecha"
+                        })
+                    out.loc[invalid, col] = pd.NA
+        if len(out) > 0:
+            print(f"[sgel] output first row sample: {out.iloc[0].to_dict()}")
+
+        buf = BytesIO()
+        with pd.ExcelWriter(buf, engine="openpyxl") as writer:
+            out.to_excel(writer, index=False, sheet_name="Plantilla R")
+            if issues:
+                pd.DataFrame(issues).to_excel(writer, index=False, sheet_name="Validaciones")
+        buf.seek(0)
+
+        headers = {
+            "Content-Disposition": "attachment; filename=Plantilla_R_Resultado.xlsx"
+        }
+        return StreamingResponse(
+            buf,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers=headers,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error generando SGEL R: {str(e)}")
+        

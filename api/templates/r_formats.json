@@ -1,0 +1,40 @@
+{
+  "R0": {
+    "nombre_tecnico": "Maestro de Personas",
+    "columnas": [
+      {"name": "Constante 'R0'", "default": "R0"},
+      {"name": "TipoPersona", "type": "string", "desc": "Física o Jurídica"},
+      {"name": "Apellido1", "type": "string"},
+      {"name": "Apellido2", "type": "string"},
+      {"name": "Nombre", "type": "string"},
+      {"name": "Identificador", "type": "string", "desc": "Número de DNI, NIE o Pasaporte"},
+      {"name": "TipoIdentificador", "type": "string", "desc": "1 para DNI, 6 para NIE, etc"},
+      {"name": "DesPais", "type": "string"},
+      {"name": "DesProvincia", "type": "string"},
+      {"name": "DesPoblacion", "type": "string"},
+      {"name": "Telefono", "type": "string"},
+      {"name": "Cpostal", "type": "string"},
+      {"name": "Sigla", "type": "string", "desc": "CL, AV, PS, etc"},
+      {"name": "ViaPublica", "type": "string"},
+      {"name": "Numero", "type": "string"},
+      {"name": "Escalera", "type": "string"},
+      {"name": "Piso", "type": "string"},
+      {"name": "Puerta", "type": "string"},
+      {"name": "AEAT", "type": "string"},
+      {"name": "FechaAlta", "type": "date", "format": "%d/%m/%Y"},
+      {"name": "Tipo Sociedad", "type": "string"},
+      {"name": "Email", "type": "string"},
+      {"name": "DesPaisNacim", "type": "string"},
+      {"name": "DesProvinciaNacim", "type": "string"},
+      {"name": "DesPoblacionNacim", "type": "string"},
+      {"name": "FechaNacim", "type": "date", "format": "%d/%m/%Y"},
+      {"name": "NombrePadre", "type": "string"},
+      {"name": "NombreMadre", "type": "string"},
+      {"name": "Sexo", "type": "string", "desc": "H o M"},
+      {"name": "Minusvalia", "type": "number"},
+      {"name": "Estado civil", "type": "string"},
+      {"name": "Nacionalidad", "type": "string"},
+      {"name": "CodPersona", "type": "string"}
+    ]
+  }
+}
