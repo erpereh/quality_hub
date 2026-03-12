@@ -2,17 +2,9 @@
 
 import { useState, useRef, ChangeEvent, DragEvent, useEffect, useMemo } from "react";
 import Link from "next/link";
-import { createClient } from "@supabase/supabase-js";
 import DownloadButton from "@/components/DownloadButton";
 
-// Initialize Supabase. Requires user to set these in .env.local
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://rxdnylmzkqevzrlxwyri.supabase.co";
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "sb_publishable_orRtPGJIVhyKwjrp7C5aXQ_gY-os-rp";
-const supabase = createClient(supabaseUrl, supabaseKey);
-
 interface MigracionRow {
-    id: string;
-    job_id: string;
     concepto: string;
     meta4_formula: string;
     meta4_unidades: string;
@@ -22,8 +14,6 @@ interface MigracionRow {
     cegid_precio: string;
     logica_aplicada: string;
     anotaciones: string;
-    status?: string;
-    created_at: string;
 }
 
 export type SortKey = keyof MigracionRow;
@@ -50,9 +40,8 @@ export default function MigradorPage() {
     const [fileFile, setFileFile] = useState<File | null>(null);
     const [isDragging, setIsDragging] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
-    // Data & Realtime State
-    const [jobId, setJobId] = useState<string | null>(null);
     const [results, setResults] = useState<MigracionRow[]>([]);
 
     // UI State
@@ -90,53 +79,11 @@ export default function MigradorPage() {
         }
     };
 
-    // Subscripción a Supabase Realtime
-    useEffect(() => {
-        if (!jobId) return;
-
-        // Fetch existing just in case
-        const fetchInitial = async () => {
-            const { data } = await supabase
-                .from("migracion_conceptos")
-                .select("*")
-                .eq("job_id", jobId);
-            if (data) {
-                setResults(data as MigracionRow[]);
-            }
-        };
-        fetchInitial();
-
-        // Subscribe to incoming rows linked to the active job_id
-        const channel = supabase
-            .channel(`realtime:migracion_conceptos:${jobId}`)
-            .on(
-                "postgres_changes",
-                {
-                    event: "*",
-                    schema: "public",
-                    table: "migracion_conceptos",
-                    filter: `job_id=eq.${jobId}`
-                },
-                (payload) => {
-                    if (payload.eventType === 'INSERT') {
-                        setResults((prev) => [...prev, payload.new as MigracionRow]);
-                    } else if (payload.eventType === 'UPDATE') {
-                        setResults((prev) => prev.map(row => row.id === payload.new.id ? payload.new as MigracionRow : row));
-                    }
-                }
-            )
-            .subscribe();
-
-        return () => {
-            supabase.removeChannel(channel);
-        };
-    }, [jobId]);
-
     const handleFile = (file: File) => {
         setFileName(file.name);
         setFileFile(file);
         setResults([]);
-        setJobId(null);
+        setError(null);
     };
 
     const onFileChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -166,38 +113,28 @@ export default function MigradorPage() {
     const handleProcess = async () => {
         if (!fileFile) return;
         setIsProcessing(true);
-        // Clear old state
         setResults([]);
-
-        // Generate Unique Job ID
-        const currentJobId = crypto.randomUUID();
-        setJobId(currentJobId);
+        setError(null);
 
         try {
             const formData = new FormData();
             formData.append("file", fileFile);
-            formData.append("job_id", currentJobId);
 
-            // Fetch to the specific n8n webhook URL
             const response = await fetch("/api/migrar", {
                 method: "POST",
                 body: formData,
             });
 
             if (!response.ok) {
-                console.error("HTTP error during upload");
-                setIsProcessing(false);
-                return;
+                const errData = await response.json().catch(() => ({}));
+                throw new Error(errData.error || `Error ${response.status}`);
             }
 
-            // Wait out just a second so user can read "Procesando..." label
-            setTimeout(() => {
-                setIsProcessing(false);
-            }, 2000);
-
-        } catch (error) {
-            console.error("Error procesando el archivo:", error);
-            alert("Error al procesar el archivo. Inténtalo de nuevo.");
+            const data: MigracionRow[] = await response.json();
+            setResults(data);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : "Error al procesar el archivo");
+        } finally {
             setIsProcessing(false);
         }
     };
@@ -238,8 +175,7 @@ export default function MigradorPage() {
         return rows;
     }, [results, searchQuery, sortKey, sortDir]);
 
-    // Total column count for the empty-state row
-    const totalCols = 9;
+    const totalCols = 8;
 
     return (
         <main className="min-h-screen bg-slate-50 py-12 px-4 sm:px-6 lg:px-8">
@@ -306,6 +242,13 @@ export default function MigradorPage() {
                         )}
                     </div>
 
+                    {/* Error message */}
+                    {error && (
+                        <div className="mb-6 px-4 py-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm">
+                            {error}
+                        </div>
+                    )}
+
                     <div className="flex justify-center pt-4 border-t border-slate-100">
                         <button
                             onClick={handleProcess}
@@ -330,7 +273,7 @@ export default function MigradorPage() {
                                         <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" className="opacity-20" />
                                         <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
                                     </svg>
-                                    Procesando...
+                                    Procesando con IA...
                                 </>
                             ) : (
                                 <>
@@ -347,7 +290,7 @@ export default function MigradorPage() {
                 </div>
 
                 {/* Results Section */}
-                {(results.length > 0 || jobId) && (
+                {results.length > 0 && (
                     <section className="space-y-6 animate-fade-in opacity-0" style={{ animationDelay: '100ms', animationFillMode: 'forwards' }}>
                         {/* Filters and Actions Bar */}
                         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between px-2 gap-4">
@@ -387,7 +330,6 @@ export default function MigradorPage() {
                                         {/* Group header row */}
                                         <tr className="bg-brand-900 text-white text-[10px] uppercase tracking-widest">
                                             <th className="px-3 py-2 font-bold rounded-tl-xl border-r border-brand-700" rowSpan={1}>
-                                                {/* Concepto spans down — handled by visual alignment */}
                                             </th>
                                             <th className="px-3 py-2 font-bold text-center border-r border-brand-700" colSpan={3}>
                                                 <span className="inline-flex items-center gap-1.5">
@@ -401,7 +343,6 @@ export default function MigradorPage() {
                                                     Cegid XRP
                                                 </span>
                                             </th>
-                                            <th className="px-3 py-2 font-bold border-r border-brand-700"></th>
                                             <th className="px-3 py-2 font-bold rounded-tr-xl"></th>
                                         </tr>
                                         {/* Sub-header row */}
@@ -429,10 +370,6 @@ export default function MigradorPage() {
                                             <th className="px-3 py-3 font-semibold cursor-pointer select-none hover:bg-brand-700 transition-colors border-r border-brand-700 min-w-[100px]" onClick={() => handleSort("cegid_precio")}>
                                                 Precio <SortArrow active={sortKey === "cegid_precio"} dir={sortDir} />
                                             </th>
-                                            {/* Estado */}
-                                            <th className="px-3 py-3 font-semibold cursor-pointer select-none hover:bg-brand-700 transition-colors border-r border-brand-700 min-w-[110px]" onClick={() => handleSort("status")}>
-                                                Estado <SortArrow active={sortKey === "status"} dir={sortDir} />
-                                            </th>
                                             {/* Lógica y Anotaciones */}
                                             <th className="px-3 py-3 font-semibold cursor-pointer select-none hover:bg-brand-700 transition-colors min-w-[220px]" onClick={() => handleSort("logica_aplicada")}>
                                                 Lógica y Anotaciones <SortArrow active={sortKey === "logica_aplicada"} dir={sortDir} />
@@ -441,7 +378,7 @@ export default function MigradorPage() {
                                     </thead>
                                     <tbody className="divide-y divide-slate-100">
                                         {visibleData.map((row, i) => (
-                                            <tr key={row.id || i} className="table-row-hover">
+                                            <tr key={i} className="table-row-hover">
                                                 {/* Concepto */}
                                                 <td className="px-3 py-3 text-sm font-medium text-slate-800 whitespace-nowrap border-r border-slate-100">
                                                     {row.concepto}
@@ -466,22 +403,12 @@ export default function MigradorPage() {
                                                 <td className="px-3 py-3 text-sm text-brand-600 bg-brand-50/20 text-right border-r border-slate-100">
                                                     {row.cegid_precio}
                                                 </td>
-                                                {/* Estado */}
-                                                <td className="px-3 py-3 text-sm border-r border-slate-100">
-                                                    {row.status === 'completado' ? (
-                                                        <span className="inline-flex items-center px-2 py-1 rounded-md bg-emerald-100 text-emerald-700 text-xs font-medium">✓ Completado</span>
-                                                    ) : row.status === 'error' ? (
-                                                        <span className="inline-flex items-center px-2 py-1 rounded-md bg-red-100 text-red-700 text-xs font-medium">✕ Error</span>
-                                                    ) : (
-                                                        <span className="inline-flex items-center px-2 py-1 rounded-md bg-amber-100 text-amber-700 text-xs font-medium animate-pulse">⟳ Procesando</span>
-                                                    )}
-                                                </td>
                                                 {/* Lógica y Anotaciones */}
                                                 <td className="px-3 py-3 text-sm text-slate-600">
                                                     <div className="flex flex-col gap-1">
                                                         <span>{row.logica_aplicada}</span>
                                                         {row.anotaciones && (
-                                                            <span className="text-xs text-amber-600 font-medium">✨ {row.anotaciones}</span>
+                                                            <span className="text-xs text-amber-600 font-medium">⚠ {row.anotaciones}</span>
                                                         )}
                                                     </div>
                                                 </td>
@@ -490,7 +417,7 @@ export default function MigradorPage() {
                                         {visibleData.length === 0 && (
                                             <tr>
                                                 <td colSpan={totalCols} className="px-6 py-8 text-center text-sm text-slate-500">
-                                                    {isProcessing ? "Esperando la respuesta de la IA (Realtime activado)..." : "No hay resultados."}
+                                                    No hay resultados.
                                                 </td>
                                             </tr>
                                         )}

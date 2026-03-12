@@ -1,6 +1,10 @@
 {
     "rewrites": [
         {
+            "source": "/api/migrar",
+            "destination": "/api/migrar"
+        },
+        {
             "source": "/api/(.*)",
             "destination": "/api/index.py"
         }
