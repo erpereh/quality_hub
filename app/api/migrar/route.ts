@@ -1,10 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
-import * as XLSX from "xlsx";
 
 export const maxDuration = 60;
-
-const BATCH_SIZE = 5;
 
 const SYSTEM_PROMPT = `Eres un consultor técnico senior especializado en nóminas y sistemas de RRHH, experto en migraciones de Meta4 a Cegid XRP. Analiza los conceptos salariales extraídos de Meta4 y tradúcelos a la sintaxis equivalente en Cegid XRP. Tu respuesta DEBE SER ÚNICAMENTE un objeto JSON válido con estas 9 claves exactas:
 1. 'concepto': Nombre original.
@@ -53,7 +50,6 @@ async function processRow(
         });
 
         const raw = completion.choices[0]?.message?.content || "{}";
-        // Extract JSON from response (handle markdown code blocks)
         const jsonMatch = raw.match(/\{[\s\S]*\}/);
         const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : "{}");
 
@@ -85,12 +81,11 @@ async function processRow(
 
 export async function POST(request: NextRequest) {
     try {
-        const formData = await request.formData();
-        const file = formData.get("file") as File;
+        const { concepto, formula, unidades, precio } = await request.json();
 
-        if (!file) {
+        if (!concepto || !formula || unidades === undefined || precio === undefined) {
             return NextResponse.json(
-                { error: "No se recibió ningún archivo" },
+                { error: "Faltan datos requeridos (concepto, formula, unidades, precio)" },
                 { status: 400 }
             );
         }
@@ -102,51 +97,19 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // Parse Excel
-        const buffer = await file.arrayBuffer();
-        const workbook = XLSX.read(buffer, { type: "array" });
-        const sheet = workbook.Sheets[workbook.SheetNames[0]];
-        const rawRows = XLSX.utils.sheet_to_json<string[]>(sheet, {
-            header: 1,
-        });
-
-        // Map rows: skip header (row 0), skip empty rows
-        const rows: RawRow[] = [];
-        for (let i = 1; i < rawRows.length; i++) {
-            const r = rawRows[i];
-            if (!r || !r[0]) continue; // skip empty rows
-            rows.push({
-                concepto: String(r[0] || ""),
-                formula: String(r[1] || ""),
-                unidades: String(r[2] || ""),
-                precio: String(r[3] || ""),
-            });
-        }
-
-        if (rows.length === 0) {
-            return NextResponse.json(
-                { error: "El archivo no contiene filas de datos" },
-                { status: 400 }
-            );
-        }
-
-        // Init OpenRouter client
         const openai = new OpenAI({
             baseURL: "https://openrouter.ai/api/v1",
             apiKey: process.env.OPENROUTER_API_KEY,
         });
 
-        // Process in batches
-        const results: MigracionResult[] = [];
-        for (let i = 0; i < rows.length; i += BATCH_SIZE) {
-            const batch = rows.slice(i, i + BATCH_SIZE);
-            const batchResults = await Promise.all(
-                batch.map((row) => processRow(openai, row))
-            );
-            results.push(...batchResults);
-        }
+        const result = await processRow(openai, {
+            concepto: String(concepto),
+            formula: String(formula),
+            unidades: String(unidades),
+            precio: String(precio),
+        });
 
-        return NextResponse.json(results);
+        return NextResponse.json(result);
     } catch (error: unknown) {
         const message =
             error instanceof Error ? error.message : String(error);

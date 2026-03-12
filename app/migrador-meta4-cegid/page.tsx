@@ -3,6 +3,7 @@
 import { useState, useRef, ChangeEvent, DragEvent, useEffect, useMemo } from "react";
 import Link from "next/link";
 import DownloadButton from "@/components/DownloadButton";
+import * as XLSX from "xlsx";
 
 interface MigracionRow {
     concepto: string;
@@ -41,6 +42,7 @@ export default function MigradorPage() {
     const [isDragging, setIsDragging] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [progress, setProgress] = useState<{ current: number; total: number } | null>(null);
 
     const [results, setResults] = useState<MigracionRow[]>([]);
 
@@ -84,6 +86,7 @@ export default function MigradorPage() {
         setFileFile(file);
         setResults([]);
         setError(null);
+        setProgress(null);
     };
 
     const onFileChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -115,23 +118,83 @@ export default function MigradorPage() {
         setIsProcessing(true);
         setResults([]);
         setError(null);
+        setProgress(null);
 
         try {
-            const formData = new FormData();
-            formData.append("file", fileFile);
+            // Parse Excel en el cliente
+            const buffer = await fileFile.arrayBuffer();
+            const workbook = XLSX.read(buffer, { type: "array" });
+            const sheet = workbook.Sheets[workbook.SheetNames[0]];
+            const rawRows = XLSX.utils.sheet_to_json<string[]>(sheet, { header: 1 });
 
-            const response = await fetch("/api/migrar", {
-                method: "POST",
-                body: formData,
-            });
-
-            if (!response.ok) {
-                const errData = await response.json().catch(() => ({}));
-                throw new Error(errData.error || `Error ${response.status}`);
+            // Mapear filas: saltar cabecera (fila 0) y filas vacías
+            const rows: Array<{ concepto: string; formula: string; unidades: string; precio: string }> = [];
+            for (let i = 1; i < rawRows.length; i++) {
+                const r = rawRows[i];
+                if (!r || !r[0]) continue;
+                rows.push({
+                    concepto: String(r[0] || ""),
+                    formula: String(r[1] || ""),
+                    unidades: String(r[2] || ""),
+                    precio: String(r[3] || ""),
+                });
             }
 
-            const data: MigracionRow[] = await response.json();
-            setResults(data);
+            if (rows.length === 0) {
+                setError("El archivo no contiene filas de datos");
+                setIsProcessing(false);
+                return;
+            }
+
+            // Procesar fila por fila
+            const processedResults: MigracionRow[] = [];
+            for (let i = 0; i < rows.length; i++) {
+                setProgress({ current: i + 1, total: rows.length });
+                const row = rows[i];
+
+                try {
+                    const response = await fetch("/api/migrar", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(row),
+                    });
+
+                    if (!response.ok) {
+                        const errData = await response.json().catch(() => ({}));
+                        processedResults.push({
+                            ...row,
+                            meta4_formula: row.formula,
+                            meta4_unidades: row.unidades,
+                            meta4_precio: row.precio,
+                            cegid_formula: "",
+                            cegid_unidades: "",
+                            cegid_precio: "",
+                            logica_aplicada: "",
+                            anotaciones: `ERROR: ${errData.error || `Error ${response.status}`}`,
+                        });
+                    } else {
+                        const data = await response.json();
+                        processedResults.push(data);
+                    }
+                } catch (err) {
+                    processedResults.push({
+                        ...row,
+                        meta4_formula: row.formula,
+                        meta4_unidades: row.unidades,
+                        meta4_precio: row.precio,
+                        cegid_formula: "",
+                        cegid_unidades: "",
+                        cegid_precio: "",
+                        logica_aplicada: "",
+                        anotaciones: `ERROR: ${err instanceof Error ? err.message : String(err)}`,
+                    });
+                }
+
+                // Actualizar tabla en tiempo real
+                setResults([...processedResults]);
+            }
+
+            setProgress(null);
         } catch (err) {
             setError(err instanceof Error ? err.message : "Error al procesar el archivo");
         } finally {
@@ -273,7 +336,7 @@ export default function MigradorPage() {
                                         <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" className="opacity-20" />
                                         <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
                                     </svg>
-                                    Procesando con IA...
+                                    {progress ? `Procesando ${progress.current} / ${progress.total}...` : "Procesando con IA..."}
                                 </>
                             ) : (
                                 <>
@@ -312,7 +375,11 @@ export default function MigradorPage() {
 
                             <div className="flex items-center gap-4">
                                 <div className="text-sm text-slate-500 bg-white border border-slate-200 px-4 py-2 rounded-lg shadow-sm">
-                                    Mostrando <strong className="text-slate-800">{visibleData.length}</strong> de <strong className="text-slate-800">{results.length}</strong> filas
+                                    {isProcessing ? (
+                                        <>Procesando <strong className="text-slate-800">{progress?.current}</strong> / <strong className="text-slate-800">{progress?.total}</strong></>
+                                    ) : (
+                                        <>Mostrando <strong className="text-slate-800">{visibleData.length}</strong> de <strong className="text-slate-800">{results.length}</strong> filas</>
+                                    )}
                                 </div>
                                 <DownloadButton data={visibleData as any[]} />
                             </div>
@@ -414,7 +481,14 @@ export default function MigradorPage() {
                                                 </td>
                                             </tr>
                                         ))}
-                                        {visibleData.length === 0 && (
+                                        {visibleData.length === 0 && isProcessing && (
+                                            <tr>
+                                                <td colSpan={totalCols} className="px-6 py-8 text-center text-sm text-slate-500">
+                                                    Procesando fila {progress?.current} de {progress?.total}...
+                                                </td>
+                                            </tr>
+                                        )}
+                                        {visibleData.length === 0 && !isProcessing && (
                                             <tr>
                                                 <td colSpan={totalCols} className="px-6 py-8 text-center text-sm text-slate-500">
                                                     No hay resultados.
