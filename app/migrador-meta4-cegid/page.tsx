@@ -113,6 +113,89 @@ export default function MigradorPage() {
         }
     };
 
+    // Función auxiliar: llamar a la API con reintentos exponenciales
+    const fetchWithRetry = async (
+        row: { concepto: string; formula: string; unidades: string; precio: string },
+        maxRetries: number = 3
+    ): Promise<MigracionRow> => {
+        let lastError: Error | string = "Error desconocido";
+
+        for (let attempt = 0; attempt < maxRetries; attempt++) {
+            try {
+                const response = await fetch("/api/migrar", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(row),
+                });
+
+                if (response.ok) {
+                    return await response.json();
+                }
+
+                lastError = await response.json().catch(() => ({ error: `Error ${response.status}` }));
+
+                // No reintentar en errores 400
+                if (response.status === 400) {
+                    throw lastError;
+                }
+            } catch (err) {
+                lastError = err instanceof Error ? err.message : String(err);
+
+                // Si es el último intento, lanzar error
+                if (attempt === maxRetries - 1) {
+                    throw lastError;
+                }
+
+                // Backoff exponencial: 1s, 2s, 4s
+                const delay = Math.pow(2, attempt) * 1000;
+                await new Promise((resolve) => setTimeout(resolve, delay));
+            }
+        }
+
+        throw lastError;
+    };
+
+    // Función auxiliar: procesar hasta N filas simultáneamente (concurrencia limitada)
+    const processRowsWithConcurrency = async (
+        rows: Array<{ concepto: string; formula: string; unidades: string; precio: string }>,
+        maxConcurrent: number = 2
+    ) => {
+        const processedResults: MigracionRow[] = [];
+        let completed = 0;
+
+        for (let i = 0; i < rows.length; i += maxConcurrent) {
+            const batch = rows.slice(i, i + maxConcurrent);
+
+            const batchPromises = batch.map(async (row) => {
+                try {
+                    return await fetchWithRetry(row);
+                } catch (err) {
+                    return {
+                        concepto: row.concepto,
+                        meta4_formula: row.formula,
+                        meta4_unidades: row.unidades,
+                        meta4_precio: row.precio,
+                        cegid_formula: "",
+                        cegid_unidades: "",
+                        cegid_precio: "",
+                        logica_aplicada: "",
+                        anotaciones: `ERROR: ${err instanceof Error ? err.message : String(err)}`,
+                    };
+                }
+            });
+
+            const batchResults = await Promise.all(batchPromises);
+            processedResults.push(...batchResults);
+            completed += batch.length;
+
+            // Actualizar progreso
+            setProgress({ current: completed, total: rows.length });
+            setResults([...processedResults]);
+        }
+
+        return processedResults;
+    };
+
     const handleProcess = async () => {
         if (!fileFile) return;
         setIsProcessing(true);
@@ -146,54 +229,8 @@ export default function MigradorPage() {
                 return;
             }
 
-            // Procesar fila por fila
-            const processedResults: MigracionRow[] = [];
-            for (let i = 0; i < rows.length; i++) {
-                setProgress({ current: i + 1, total: rows.length });
-                const row = rows[i];
-
-                try {
-                    const response = await fetch("/api/migrar", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify(row),
-                    });
-
-                    if (!response.ok) {
-                        const errData = await response.json().catch(() => ({}));
-                        processedResults.push({
-                            ...row,
-                            meta4_formula: row.formula,
-                            meta4_unidades: row.unidades,
-                            meta4_precio: row.precio,
-                            cegid_formula: "",
-                            cegid_unidades: "",
-                            cegid_precio: "",
-                            logica_aplicada: "",
-                            anotaciones: `ERROR: ${errData.error || `Error ${response.status}`}`,
-                        });
-                    } else {
-                        const data = await response.json();
-                        processedResults.push(data);
-                    }
-                } catch (err) {
-                    processedResults.push({
-                        ...row,
-                        meta4_formula: row.formula,
-                        meta4_unidades: row.unidades,
-                        meta4_precio: row.precio,
-                        cegid_formula: "",
-                        cegid_unidades: "",
-                        cegid_precio: "",
-                        logica_aplicada: "",
-                        anotaciones: `ERROR: ${err instanceof Error ? err.message : String(err)}`,
-                    });
-                }
-
-                // Actualizar tabla en tiempo real
-                setResults([...processedResults]);
-            }
-
+            // Procesar con concurrencia limitada a 2 y reintentos automáticos
+            await processRowsWithConcurrency(rows, 2);
             setProgress(null);
         } catch (err) {
             setError(err instanceof Error ? err.message : "Error al procesar el archivo");

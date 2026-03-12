@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 
 export const maxDuration = 60;
+export const runtime = 'nodejs'; // Usar Node.js runtime para max 60s en Pro, 10s en Hobby
 
 const SYSTEM_PROMPT = `Eres un consultor técnico senior especializado en nóminas y sistemas de RRHH, experto en migraciones de Meta4 a Cegid XRP. Analiza los conceptos salariales extraídos de Meta4 y tradúcelos a la sintaxis equivalente en Cegid XRP. Tu respuesta DEBE SER ÚNICAMENTE un objeto JSON válido con estas 9 claves exactas:
 1. 'concepto': Nombre original.
