@@ -13,10 +13,10 @@ const SYSTEM_PROMPT = `Eres un consultor técnico senior especializado en nómin
 5. 'cegid_formula': Fórmula adaptada a Cegid XRP.
 6. 'cegid_unidades': Lógica de unidades adaptada a Cegid XRP.
 7. 'cegid_precio': Lógica de precio adaptada a Cegid XRP.
-8. 'logica_aplicada': DEBE estar dividida en dos partes. PRIMERO: 'Definición Funcional', donde explicas brevemente desde el punto de vista de Recursos Humanos qué significa y para qué sirve este concepto salarial en España (ej: 'El Plus Convenio es una cantidad fijada...'). SEGUNDO: 'Transformación Técnica', donde explicas los cambios que has hecho en la fórmula de Meta4 a Cegid XRP.
+8. 'logica_aplicada': DEBE estar dividida en dos partes. PRIMERO: 'Definición Funcional', donde explicas brevemente desde el punto de vista de Recursos Humanos qué significa y para qué sirve este concepto salarial en España. SEGUNDO: 'Transformación Técnica', donde explicas los cambios que has hecho en la fórmula de Meta4 a Cegid XRP.
 9. 'anotaciones': Advertencias técnicas.
 
-Sigue ESTRICTAMENTE este manual técnico para generar los valores de las claves de Cegid XRP:
+Sigue ESTRICTAMENTE este manual técnico de Arquitectura para generar los valores de las claves de Cegid XRP:
 ${CEGID_RULES}`;
 
 interface RawRow {

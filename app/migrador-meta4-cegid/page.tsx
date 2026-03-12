@@ -5,6 +5,9 @@ import Link from "next/link";
 import DownloadButton from "@/components/DownloadButton";
 import * as XLSX from "xlsx";
 
+// Detección de entorno para optimizar delays
+const isDev = process.env.NODE_ENV === 'development';
+
 interface MigracionRow {
     concepto: string;
     meta4_formula: string;
@@ -140,14 +143,16 @@ export default function MigradorPage() {
                 }
             } catch (err) {
                 lastError = err instanceof Error ? err.message : String(err);
+                console.error(`Intento ${attempt + 1} falló para la fila ${row.concepto}:`, err);
 
                 // Si es el último intento, lanzar error
                 if (attempt === maxRetries - 1) {
                     throw lastError;
                 }
 
-                // Backoff exponencial: 1s, 2s, 4s
-                const delay = Math.pow(2, attempt) * 1000;
+                // Backoff exponencial: 1s, 2s, 4s en prod; 50ms, 100ms, 200ms en dev
+                const baseDelay = isDev ? 50 : 1000;
+                const delay = Math.pow(2, attempt) * baseDelay;
                 await new Promise((resolve) => setTimeout(resolve, delay));
             }
         }
@@ -170,6 +175,8 @@ export default function MigradorPage() {
                 try {
                     return await fetchWithRetry(row);
                 } catch (err) {
+                    const errorMsg = err instanceof Error ? err.message : String(err);
+                    console.error(`Error procesando la fila "${row.concepto}":`, err);
                     return {
                         concepto: row.concepto,
                         meta4_formula: row.formula,
@@ -179,7 +186,7 @@ export default function MigradorPage() {
                         cegid_unidades: "",
                         cegid_precio: "",
                         logica_aplicada: "",
-                        anotaciones: `ERROR: ${err instanceof Error ? err.message : String(err)}`,
+                        anotaciones: `ERROR: ${errorMsg}`,
                     };
                 }
             });
