@@ -7,7 +7,10 @@
       "Bash(cd \"/c/Users/Perez/Documents/aQuality SolutIon/proyectos git/paralelos_sgel\" && npx next build 2>&1 | tail -35)",
       "Bash(cd \"/c/Users/Perez/Documents/aQuality SolutIon/proyectos git/paralelos_sgel\" && npx next build 2>&1 | grep -E \"\\(Compiled|error\\)\")",
       "Bash(cd \"/c/Users/Perez/Documents/aQuality SolutIon/proyectos git/paralelos_sgel\" && npx next build 2>&1 | grep -E \"\\(Compiled|error|import\\)\" | head -10)",
-      "Bash(cd \"/c/Users/Perez/Documents/aQuality SolutIon/proyectos git\\\\paralelos_sgel\" && npx next build 2>&1 | grep -E \"\\(Compiled|error\\)\" | head -3)"
+      "Bash(cd \"/c/Users/Perez/Documents/aQuality SolutIon/proyectos git\\\\paralelos_sgel\" && npx next build 2>&1 | grep -E \"\\(Compiled|error\\)\" | head -3)",
+      "Bash(cd \"/c/Users/Perez/Documents/aQuality SolutIon/proyectos git/paralelos_sgel\" && npm install exceljs)",
+      "Bash(cd \"/c/Users/Perez/Documents/aQuality SolutIon/proyectos git/paralelos_sgel\" && npx next build 2>&1 | tail -40)",
+      "Bash(cd \"/c/Users/Perez/Documents/aQuality SolutIon/proyectos git/paralelos_sgel\" && npx next build 2>&1 | grep -E \"\\(Compiled|error\\)\" | head -3)"
     ]
   }
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 
 interface DownloadButtonProps {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -11,7 +11,7 @@ interface DownloadButtonProps {
 export default function DownloadButton({ data }: DownloadButtonProps) {
     const [loading, setLoading] = useState(false);
 
-    const handleDownload = () => {
+    const handleDownload = async () => {
         if (!data || data.length === 0) {
             alert("No hay datos para descargar.");
             return;
@@ -20,33 +20,112 @@ export default function DownloadButton({ data }: DownloadButtonProps) {
         setLoading(true);
 
         try {
-            // Map rows to the desired Excel columns
-            const excelData = data.map((row) => ({
-                "Concepto": row.concepto || "",
-                "Fórmula Meta4": row.meta4_formula || "",
-                "Unidades Meta4": row.meta4_unidades || "",
-                "Precio Meta4": row.meta4_precio || "",
-                "Fórmula Cegid XRP": row.cegid_formula || "",
-                "Unidades Cegid XRP": row.cegid_unidades || "",
-                "Precio Cegid XRP": row.cegid_precio || "",
-                "Lógica Aplicada": row.logica_aplicada || "",
-                "Anotaciones": row.anotaciones || "",
+            // Crear workbook y worksheet
+            const workbook = new ExcelJS.Workbook();
+            const worksheet = workbook.addWorksheet("Migración Meta4 → Cegid", {
+                pageSetup: { paperSize: 9, orientation: "landscape" }, // A4 landscape
+            });
+
+            // Definir columnas con anchos específicos
+            const columns = [
+                { header: "Concepto", key: "concepto", width: 20 },
+                { header: "Fórmula Meta4", key: "meta4_formula", width: 35 },
+                { header: "Unidades Meta4", key: "meta4_unidades", width: 30 },
+                { header: "Precio Meta4", key: "meta4_precio", width: 18 },
+                { header: "Fórmula Cegid XRP", key: "cegid_formula", width: 35 },
+                { header: "Unidades Cegid XRP", key: "cegid_unidades", width: 30 },
+                { header: "Precio Cegid XRP", key: "cegid_precio", width: 18 },
+                { header: "Lógica Aplicada", key: "logica_aplicada", width: 50 },
+                { header: "Anotaciones", key: "anotaciones", width: 50 },
+            ];
+
+            worksheet.columns = columns;
+
+            // Aplicar estilos a la cabecera
+            const headerRow = worksheet.getRow(1);
+
+            headerRow.fill = {
+                type: "pattern",
+                pattern: "solid",
+                fgColor: { argb: "FF2574F2" }, // Brand color (azul)
+            } as any;
+
+            headerRow.font = {
+                bold: true,
+                color: { argb: "FFFFFFFF" }, // Blanco
+                size: 11,
+            };
+
+            headerRow.alignment = {
+                horizontal: "center",
+                vertical: "center",
+                wrapText: true,
+            } as any;
+            worksheet.getRow(1).height = 35; // Altura para que se vea bien con wrap
+
+            // Agregar datos
+            const mappedData = data.map((row) => ({
+                concepto: row.concepto || "",
+                meta4_formula: row.meta4_formula || "",
+                meta4_unidades: row.meta4_unidades || "",
+                meta4_precio: row.meta4_precio || "",
+                cegid_formula: row.cegid_formula || "",
+                cegid_unidades: row.cegid_unidades || "",
+                cegid_precio: row.cegid_precio || "",
+                logica_aplicada: row.logica_aplicada || "",
+                anotaciones: row.anotaciones || "",
             }));
 
-            // Create workbook and worksheet
-            const ws = XLSX.utils.json_to_sheet(excelData);
+            worksheet.addRows(mappedData);
 
-            // Auto-size columns based on header width + some padding
-            const colWidths = Object.keys(excelData[0]).map((key) => ({
-                wch: Math.max(key.length + 4, 18),
-            }));
-            ws["!cols"] = colWidths;
+            // Aplicar estilos a las filas de datos
+            worksheet.eachRow((row, rowNumber) => {
+                if (rowNumber === 1) return; // Saltar cabecera (ya la estilizamos)
 
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "Migración Meta4 → Cegid");
+                // Alineación y wrap text para todas las celdas
+                row.eachCell((cell) => {
+                    cell.alignment = {
+                        horizontal: "left",
+                        vertical: "top",
+                        wrapText: true,
+                    } as any;
 
-            // Generate and download
-            XLSX.writeFile(wb, "migracion_meta4_cegid.xlsx");
+                    // Bordes sutiles
+                    cell.border = {
+                        top: { style: "thin", color: { argb: "FFD1D5DB" } },
+                        left: { style: "thin", color: { argb: "FFD1D5DB" } },
+                        bottom: { style: "thin", color: { argb: "FFD1D5DB" } },
+                        right: { style: "thin", color: { argb: "FFD1D5DB" } },
+                    } as any;
+
+                    // Fuente clara
+                    cell.font = {
+                        name: "Calibri",
+                        size: 10,
+                        color: { argb: "FF1F2937" }, // Gris oscuro
+                    };
+                });
+
+                // Altura mínima para que el wrap sea visible
+                row.height = Math.max(30, row.getCell(8).value?.toString().split("\n").length ?? 1 * 15);
+            });
+
+            // Congelar la fila de cabecera
+            worksheet.views = [{ state: "frozen", ySplit: 1 }];
+
+            // Generar y descargar el archivo
+            const buffer = await workbook.xlsx.writeBuffer();
+            const blob = new Blob([buffer], {
+                type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `migracion_meta4_cegid_${new Date().toISOString().split("T")[0]}.xlsx`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
         } catch (err) {
             console.error("Error generando el Excel:", err);
             alert(err instanceof Error ? err.message : "Error descargando Excel");
